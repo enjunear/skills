@@ -163,3 +163,7 @@ install.sh
 ```
 
 [SendMessage]: requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; not relied on.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
