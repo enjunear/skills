@@ -54,51 +54,25 @@ buildable product.
 — every turn flows through the skill as the hub. That keeps turns serialized
 (one at a time, fixed order), the transcript clean and ordered, and convergence
 detectable; a peer-to-peer mesh would be racier and risk an N² message storm. The
-moderator is a **dumb pipe with a clock**: it relays each turn *verbatim*, never
-summarizing, softening, or editorializing — the two failure modes that killed an
-earlier model-driven version were *leading the witness* (editorialized per-turn
-prompts — "the conclusion has formed…") and *stopping early* (calling "converged"
-before a real unanimous-`NO_OUTPUT` round). The fix isn't to take the model out of
-the loop; it's to bar it from authoring debate content. The only text the
-moderator writes into the channel is the fixed standing brief and the
-content-neutral timekeeper nudges, and convergence is a mechanical check (a full
-round of bare `NO_OUTPUT`), not a judgment call.
+moderator is a **dumb pipe with a clock**: it relays each turn *verbatim* — never
+summarizing, softening, or editorializing — and the only text it authors into the
+channel is the fixed standing brief and the content-neutral timekeeper nudges.
+Convergence is a mechanical check (a full round of bare `NO_OUTPUT`), not a
+judgment call. Relay fidelity rests on the moderator copying turns verbatim; that
+is enforced by instruction, not by code, so a model under context pressure can
+drift toward compressing what it relays.
 
-**Why persistent agents.** Each agent *remembers* the conversation and develops
-its line across rounds, instead of re-reading a flat transcript cold every turn.
-That buys a longer, cheaper, richer debate: an agent receives only what's new
-since it last spoke (its prior context is cached), rather than the whole
-transcript re-pasted into a fresh one-shot each turn. The cost is that persistent
-agents don't survive a session boundary — so the **transcript is the only durable
-state**, and `resume` rebuilds the panel from it (see below). Blindness is only a
-*starting* condition here: agents aren't told who their co-panelists are, but they
-infer roles from the relayed turns over time, which is fine — the
-no-pre-emption value only matters before the debate has any content.
+**Persistent agents.** Holding its own context lets each agent *remember* the
+conversation and develop its line across rounds, and receive only the *delta*
+since it last spoke rather than the whole transcript re-pasted. They don't survive
+a session boundary — the **transcript is the only durable state**, and `resume`
+rebuilds the panel from it (see below).
 
-**Keeping cost sane.** Turns are **brief and bulleted** — each agent makes one
-decisive point per turn (one rebuttal + one new move), not an essay, and raises
-points *across* rounds rather than dumping them. The brevity instruction lives in
-the standing brief (not the agent personas), so the agents stay reusable
-standalone. On top of that, persistent agents only receive the *delta* since their
-last turn — not the whole transcript re-pasted — and their prior context is
-cached, which is where most of the savings come from versus a fresh one-shot per
-turn. The round cap defaults to **8** (override with `rounds=N`).
-
-**Honest tradeoffs vs the old deterministic workflow** (both inherent to a
-model-as-moderator, not bugs to fix):
-- *Relay fidelity is now a discipline, not a guarantee.* The old workflow
-  concatenated turns in JS, so the transcript was verbatim by construction. A
-  model moderator is tempted to compress what it relays under context pressure —
-  observed in live runs. The skill forbids it in the strongest terms, and the
-  persisted transcript is kept verbatim from each agent's own output, but the
-  per-turn *deltas* a model relays can drift. If verbatim relay is non-negotiable,
-  the workflow was stricter.
-- *The moderator now pays for the relay.* In the workflow the loop was free JS;
-  here the moderator is a model whose context carries the transcript and re-emits
-  each delta, so orchestration costs real tokens. The "cheaper" win is **agent
-  side** (cached context + delta-only sends); whether it nets cheaper *overall*
-  depends on debate length and how tightly the moderator relays. Short debates can
-  cost *more* than the workflow once the moderator's own tokens are counted.
+**Brief turns.** Each agent makes one decisive point per turn (one rebuttal + one
+new move), not an essay, and raises points *across* rounds rather than dumping
+them. The brevity instruction lives in the standing brief (not the agent
+personas), so the agents stay reusable standalone. The round cap defaults to **8**
+(override with `rounds=N`).
 
 **Timekeeper nudges.** The moderator injects a `<timekeeper>` note at the
 one-third, two-third, and final rounds — gentle, content-neutral steers toward
@@ -117,12 +91,6 @@ checks *any* claim, not just the verdict-deciding ones, even confirming ones);
 next step) is as sharp as the debate can make it. When a *full round* is
 all-`NO_OUTPUT`, the debate has run dry → converged. Backstop: `max_rounds`
 (default 8; override with `rounds=N`).
-
-Convergence does fire: a real debate (dog-walking) converged at round 5 once
-Devil's-Advocate was tuned from "find one more angle forever" to "critique the
-current version, concede when it survives." A `max`-effort never-fold critic can
-keep the panel from ever standing down — the softer disposition plus the parking
-lot below is what lets it stop honestly.
 
 Each agent emits exactly `NO_OUTPUT` — and *only* that bare token — when it
 stands down; a paragraph that ends in `NO_OUTPUT` is a contribution, not a
@@ -185,11 +153,8 @@ install.sh
 ```
 
 [SendMessage]: the skill spawns background agents and hands them turns via
-`SendMessage` — verified working in Claude Code 2.1.191 with no special flag set
-(spawn, agent→`main` reply, and directed resume by `agentId` all round-trip).
-Earlier builds may have gated this behind `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`.
-If the capability is unavailable, grill-team says so and stops rather than quietly
-running the debate in a single voice.
+`SendMessage`. If background agents or `SendMessage` are unavailable, grill-team
+says so and stops rather than quietly running the debate in a single voice.
 
 ## License
 

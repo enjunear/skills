@@ -13,7 +13,7 @@ A four-voice debate that pressure-tests an idea and hones it into a better versi
 - **`fact-checker`** (label `FC`) — grounds claims in fact (the only one with research tools).
 - **`venture-partner`** (label `VC`) — shapes it into a marketable, shippable product.
 
-The panel are **persistent background agents** that hold their own context across the whole debate. You spawn them once, then hand each its turn over `SendMessage` — so each agent *remembers* the conversation and develops its line over rounds, instead of re-reading a flat transcript cold every turn. That's what buys a longer, cheaper, richer debate: agents receive only what's *new* since they last spoke (their prior context is cached), not the whole transcript re-pasted each turn.
+The panel are **persistent background agents** that hold their own context across the whole debate. You spawn them once, then hand each its turn over `SendMessage` — so each agent *remembers* the conversation and develops its line over rounds, and receives only what's *new* since it last spoke rather than the whole transcript re-pasted each turn.
 
 The arguments: **$ARGUMENTS**
 
@@ -29,7 +29,7 @@ You are the hub. Every turn flows through you, but you are a **dumb pipe with a 
 
 The judgment that *is* yours: the **bounded-idea gate** (Step 1) and the **resume** decisions. Nothing about the debate's content.
 
-> **Needs background agents + `SendMessage`.** Verified working in Claude Code 2.1.191 with no special flag set. If `SendMessage` or background spawning is unavailable in your build, say so and stop — don't silently fall back to running the debate yourself in one voice.
+> **Needs background agents + `SendMessage`.** If `SendMessage` or background spawning is unavailable in your build, say so and stop — don't silently fall back to running the debate yourself in one voice.
 
 ---
 
