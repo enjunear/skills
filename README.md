@@ -84,6 +84,22 @@ last turn — not the whole transcript re-pasted — and their prior context is
 cached, which is where most of the savings come from versus a fresh one-shot per
 turn. The round cap defaults to **8** (override with `rounds=N`).
 
+**Honest tradeoffs vs the old deterministic workflow** (both inherent to a
+model-as-moderator, not bugs to fix):
+- *Relay fidelity is now a discipline, not a guarantee.* The old workflow
+  concatenated turns in JS, so the transcript was verbatim by construction. A
+  model moderator is tempted to compress what it relays under context pressure —
+  observed in live runs. The skill forbids it in the strongest terms, and the
+  persisted transcript is kept verbatim from each agent's own output, but the
+  per-turn *deltas* a model relays can drift. If verbatim relay is non-negotiable,
+  the workflow was stricter.
+- *The moderator now pays for the relay.* In the workflow the loop was free JS;
+  here the moderator is a model whose context carries the transcript and re-emits
+  each delta, so orchestration costs real tokens. The "cheaper" win is **agent
+  side** (cached context + delta-only sends); whether it nets cheaper *overall*
+  depends on debate length and how tightly the moderator relays. Short debates can
+  cost *more* than the workflow once the moderator's own tokens are counted.
+
 **Timekeeper nudges.** The moderator injects a `<timekeeper>` note at the
 one-third, two-third, and final rounds — gentle, content-neutral steers toward
 consolidating on the strongest version (no round numbers, no verdict). They push

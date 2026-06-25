@@ -77,11 +77,12 @@ How this works:
   </PARK>
   Don't re-raise anything already parked anywhere in the conversation.
 - When you have nothing new and on-topic left to add — only repetition or padding, or everything left is parked-class — reply with exactly the bare token NO_OUTPUT and nothing else. Standing down honestly is the goal, not a failure. NO_OUTPUT is exclusive: never reason and THEN stand down in the same turn.
+- Each turn, your reply is simply your message back to me — you don't need any messaging tool, just answer and your turn is delivered.
 
-Acknowledge by replying exactly "ready" (this is not your first turn — just confirm and stand by). Send all replies to "main".
+Acknowledge by replying exactly "ready" (this is not your first turn — just confirm and stand by).
 ```
 
-Wait for all four to reply `ready`. (Don't tell any agent who its co-panelists are — initial blindness keeps anyone from pre-empting the others' jobs. They'll infer roles from the relayed turns over time, which is fine.)
+Wait for all four to reply `ready`. (The panel agents are `Read`-only — `blue-sky`/`devils-advocate`/`venture-partner` have only `Read`, `fact-checker` adds the research tools — so they have **no `SendMessage`**; that's fine. You spawn each in the background and hand it turns via `SendMessage`; its reply comes back to you as the task-completion result. You never need them to message you.) (Don't tell any agent who its co-panelists are — initial blindness keeps anyone from pre-empting the others' jobs. They'll infer roles from the relayed turns over time, which is fine.)
 
 ### Step 3 — Run the relay loop
 
@@ -89,16 +90,18 @@ Keep a **master transcript** string. Each recorded turn is wrapped so boundaries
 
 Loop rounds `1..N`, and within each round go in **fixed order BS → DA → FC → VC** (VC last so it folds the round's divergence, critique, and grounded facts into the product). For each turn:
 
-1. **If a timekeeper nudge fires this round, record it first** (once per round, before BS's turn) so it lands in this round's deltas. Fire points:
-   - round `ceil(N/3)` → `The conversation has explored the idea from several angles. Start building on what has survived and resolving open threads — we're after the strongest version of the idea.`
-   - round `ceil(2N/3)` → `The conversation is nearing the end of the allocated time. Work together to find the strongest version of the idea.`
-   - round `N` (last) → `Last round — the session is closing. Land the strongest version of the idea: park anything that can only be settled outside this debate, and if you've nothing decisive left to add, stand down.`
+1. **If a timekeeper nudge fires this round, record it first** (once per round, before BS's turn) so it lands in this round's deltas. Compute the three fire-rounds, then **suppress any that collapse** (small `N`) so the opening round is never nudged and no round fires twice:
+   - **last** = round `N` (always, when `N ≥ 2`) → `Last round — the session is closing. Land the strongest version of the idea: park anything that can only be settled outside this debate, and if you've nothing decisive left to add, stand down.`
+   - **second** = round `ceil(2N/3)` — fire **only if** it's `> 1` and `< N` → `The conversation is nearing the end of the allocated time. Work together to find the strongest version of the idea.`
+   - **first** = round `ceil(N/3)` — fire **only if** it's `> 1` and `<` the second nudge's round → `The conversation has explored the idea from several angles. Start building on what has survived and resolving open threads — we're after the strongest version of the idea.`
+
+   (So round 1 is always clean; at `N=3` only rounds 2 and 3 nudge; at `N=8` rounds 3, 6, 8.)
 2. **`SendMessage`** to this agent's `agentId`. The `message` is the **delta**: every turn recorded since *this agent* last spoke, copied verbatim, followed by `Your turn.` In steady round-robin the delta is just the three turns since its last one (plus any `<timekeeper>` line); on the very first turn of the debate, BS gets no prior turns (it opens), and DA/FC/VC each get the turns already taken this round.
-3. **Await its reply** (it arrives as a notification when the agent sends to `main`). Append it to the transcript verbatim inside the agent's tag. A turn counts as a stand-down **only** if the reply is exactly the bare token `NO_OUTPUT`; anything else (even a paragraph ending in `NO_OUTPUT`) is a contribution.
+3. **Await its reply** (it arrives as the agent's task-completion result — the panel agents have no `SendMessage`, so their turn text *is* the reply). Append it to the transcript verbatim inside the agent's tag. A turn counts as a stand-down **only** if the reply is exactly the bare token `NO_OUTPUT`; anything else (even a paragraph ending in `NO_OUTPUT`) is a contribution.
 
 The turns are serialized naturally: you message one agent and wait for its reply before messaging the next. Replies are async across your own turns — proceed each time one lands.
 
-**Convergence** (a mechanical check, not a judgment): if a **full round** — all four of BS, DA, FC, VC in the same round — replied exactly `NO_OUTPUT`, the debate has run dry. Stop; exit reason = `converged at round R (unanimous NO_OUTPUT)`. Otherwise run to the cap; exit reason = `hit cap at N rounds — positions still moving`.
+**Convergence** (a mechanical check, not a judgment): if a **full round** — all four of BS, DA, FC, VC in the same round — replied exactly `NO_OUTPUT`, the debate has run dry. Stop; exit reason = `converged at round R (unanimous NO_OUTPUT)`. Otherwise run to the cap. For the cap exit reason, report what the **final round actually did**: if every voice contributed, `hit cap at N rounds — positions still moving`; if some stood down, say so, e.g. `hit cap at N rounds (final round: only BS contributed; DA/FC/VC stood down — effectively converged)`. Don't paste "positions still moving" onto a round that mostly fell silent.
 
 > Do not call convergence early because the debate "seems done." It's done when and only when a whole round stands down.
 
