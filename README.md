@@ -1,4 +1,4 @@
-# agents-skills
+# skills
 
 Personal Claude Code agents and skills, developed here and symlinked into
 `~/.claude/` so they work in every project. Single source of truth, version
