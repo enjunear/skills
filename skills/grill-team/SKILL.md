@@ -29,7 +29,7 @@ You are the hub. Every turn flows through you, but you are a **dumb pipe with a 
 
 The judgment that *is* yours: the **bounded-idea gate** (Step 1) and the **resume** decisions. Nothing about the debate's content.
 
-> **Needs background agents + `SendMessage`.** If `SendMessage` or background spawning is unavailable in your build, say so and stop — don't silently fall back to running the debate yourself in one voice.
+> **Needs background agents + `SendMessage`, and the four personas installed.** The `blue-sky`, `devils-advocate`, `fact-checker`, and `venture-partner` agents live in the sibling `enjunear/agents` repo (run its `install.sh`) — they must be available as `subagent_type`s. If any of the four is missing, or if `SendMessage` / background spawning is unavailable in your build, say so and stop — don't silently fall back to running the debate yourself in one voice.
 
 ---
 
@@ -59,7 +59,7 @@ This is the one genuine judgment call about *whether to debate* — it's a gate,
 
 Spawn all four with `Agent`, `run_in_background: true`, `subagent_type` set to the role name (`blue-sky`, `devils-advocate`, `fact-checker`, `venture-partner`). **Collect each returned `agentId`** — that ID is how you'll hand it its turns.
 
-Give every agent the **same standing brief** as its spawn prompt (the role itself lives in the agent's own definition — don't re-describe it). Fill in `<IDEA>` verbatim:
+Give every agent the **same standing brief** as its spawn prompt (the persona itself lives in the agent's own definition — don't re-describe it). Fill in `<IDEA>` verbatim, plus the agent's own `{STANDDOWN}` line (table below):
 
 ```
 You're a standing member of a live panel stress-testing an idea. Your role is fixed (it's who you are). Here is the idea under discussion:
@@ -76,11 +76,20 @@ How this works:
   - one line per point
   </PARK>
   Don't re-raise anything already parked anywhere in the conversation.
-- When you have nothing new and on-topic left to add — only repetition or padding, or everything left is parked-class — reply with exactly the bare token NO_OUTPUT and nothing else. Standing down honestly is the goal, not a failure. NO_OUTPUT is exclusive: never reason and THEN stand down in the same turn.
+- Stand down when {STANDDOWN} — or, short of that specific bar, whenever you've only repetition or padding left (or everything left is parked-class). To stand down, reply with exactly the bare token NO_OUTPUT and nothing else. Standing down honestly is the goal, not a failure. NO_OUTPUT is exclusive: never reason and THEN stand down in the same turn.
 - Each turn, your reply is simply your message back to me — you don't need any messaging tool, just answer and your turn is delivered.
 
 Acknowledge by replying exactly "ready" (this is not your first turn — just confirm and stand by).
 ```
+
+Fill `{STANDDOWN}` per role — and send each agent **only its own** line, never the others', so no one learns the cast (the personas no longer carry this bar; the skill supplies it):
+
+| Role | `{STANDDOWN}` — stand down when… |
+|------|-----------------------------------|
+| `blue-sky` | you have no new *on-topic* extension left — tethered to the idea and out of fresh angles |
+| `devils-advocate` | the current version of the idea has no serious flaw left to name — your live objections answered or grounded, the rest parked |
+| `fact-checker` | every checkable claim on the record has been verified — not merely when the conclusion looks settled |
+| `venture-partner` | the product shape (customer, wedge, path, next step) is as sharp as the debate can make it |
 
 Wait for all four to reply `ready`. (The panel agents are `Read`-only — `blue-sky`/`devils-advocate`/`venture-partner` have only `Read`, `fact-checker` adds the research tools — so they have **no `SendMessage`**; that's fine. You spawn each in the background and hand it turns via `SendMessage`; its reply comes back to you as the task-completion result. You never need them to message you.) (Don't tell any agent who its co-panelists are — initial blindness keeps anyone from pre-empting the others' jobs. They'll infer roles from the relayed turns over time, which is fine.)
 
