@@ -1,13 +1,7 @@
 ---
 name: merge-train
-description: >
-  Sequential GitLab merge train driven by Claude. For each MR in order:
-  rebase → wait → set auto-merge → poll until merged. Resolves rebase
-  conflicts in-session using a local worktree. Use when the user says
-  "/merge-train", "run a merge train", "merge these MRs in order", or
-  passes a list/filter of GitLab MRs to land sequentially. Requires
-  `glab`, `jq`, and `git` on PATH; current working directory must be
-  the GitLab project repo.
+description: Sequential GitLab merge train — lands a list of MRs one at a time, rebasing each onto the result of the previous merge.
+disable-model-invocation: true
 ---
 
 # merge-train — Sequential GitLab Merge Train
@@ -19,8 +13,6 @@ Process GitLab MRs one at a time. For each MR: server-side rebase, resolve any c
 User types `/merge-train [args]` or asks to "run a merge train", "merge these MRs in order", "land MRs !101 !102 !103", etc.
 
 ## Args (parse from the user's invocation)
-
-Mirror the `merge-train.sh` CLI:
 
 | Arg | Meaning |
 |---|---|
@@ -60,28 +52,12 @@ Keep only MRs where `approved` is `true`. Log which unapproved MRs you dropped. 
 
 ## Pipeline duration intelligence
 
-The bash script's fixed 30s poll is the main reason it misbehaves: it wastes API calls while CI is mid-run and then delays the next MR by up to 30s after merge. Use real pipeline history instead.
+A fixed poll interval misbehaves: it wastes API calls while CI is mid-run and then delays the next MR after merge. Use real pipeline history instead.
 
-Once per train run, sample recent successful pipelines on the target branch via `glab ci list`:
-
-```bash
-glab ci list -F json -r <target-branch> -s success -P 20 \
-  | jq '[.[].duration | select(type == "number" and . > 0)] | sort_by(.)'
-```
-
-Note: in some GitLab versions `duration` is `null` in the list endpoint. If so, fall back to wall time from `created_at` → `updated_at`:
-
-```bash
-glab ci list -F json -r <target-branch> -s success -P 20 \
-  | jq '[.[] | (((.updated_at | fromdateiso8601) - (.created_at | fromdateiso8601)) | floor) | select(. > 0)] | sort_by(.)'
-```
-
-From the sorted durations compute and remember:
+Once per train run, compute three numbers from recent successful pipelines on the target branch — see [`PIPELINE-TIMING.md`](PIPELINE-TIMING.md) for the `glab ci list` queries and sparse-history fallbacks:
 - **`p50`** (median) — typical wall time from rebase-push to merge
 - **`p90`** — slow-but-still-fine case
 - **`max_seen`** — sanity bound for "this is definitely stuck"
-
-Fallbacks if history is sparse (< 5 successful runs): `p50=180s`, `p90=600s`, `max_seen=1800s`. Note the fallback in the pre-flight summary so the user knows the timing is a guess.
 
 These numbers are the wait budget. Use them for poll cadence (step 6 below) and for deciding when to investigate.
 
@@ -106,23 +82,7 @@ glab mr view <id> --output json | jq '{
 }'
 ```
 
-**`detailed_merge_status`** is the single most useful field GitLab gives you. Common values:
-
-| Value | Meaning |
-|---|---|
-| `mergeable` | Ready to merge |
-| `checking` / `unchecked` | GitLab still computing — wait |
-| `conflict` | Has merge conflicts → needs rebase + conflict handler |
-| `need_rebase` | Fast-forward only; rebase required |
-| `ci_must_pass` | Pipeline failed or missing |
-| `ci_still_running` | Pipeline running |
-| `discussions_not_resolved` | Unresolved threads |
-| `draft_status` | Draft MR |
-| `not_approved` / `requested_changes` | Approval state blocks merge |
-| `external_status_checks` | External check failing |
-| `not_open` | MR closed/merged already |
-
-Map these directly to skip/fail/continue decisions instead of re-deriving from individual fields.
+**`detailed_merge_status`** is the single most useful field GitLab gives you — its own computed verdict on mergeability. Map it directly to skip/fail/continue decisions instead of re-deriving from individual fields. The full value → meaning → action table is in step 4.
 
 **`diverged_commits_count`** tells you whether step 1 is needed at all. If 0, the source branch is current with target — **skip the rebase**, go straight to step 3.
 
@@ -152,36 +112,7 @@ Branch on `--on-conflict`:
 
 - **`stop`** — Halt the train. Report which MR stopped it.
 - **`skip`** — Log, mark MR `skipped`, move to next.
-- **`resolve`** (default):
-
-  1. Get source/target branches:
-     ```bash
-     glab mr view <id> -F json | jq -r '.source_branch, .target_branch'
-     ```
-  2. Fetch and create worktree:
-     ```bash
-     git fetch origin <source> <target>
-     mkdir -p .merge-train-worktrees
-     git worktree add .merge-train-worktrees/mr-<id> origin/<source>
-     ```
-  3. Inside the worktree, rebase onto target:
-     ```bash
-     cd .merge-train-worktrees/mr-<id>
-     git rebase origin/<target>
-     ```
-  4. **Resolve conflicts using your tools.** Read each conflicted file, understand both sides, produce a merged result that preserves both intents. `git add <files>` then `git rebase --continue`. Loop until the rebase completes.
-  5. Push:
-     ```bash
-     git push --force-with-lease origin <source>
-     ```
-  6. **Always clean up the worktree**, success or failure:
-     ```bash
-     cd <repo-root>
-     git worktree remove --force .merge-train-worktrees/mr-<id>
-     ```
-  7. If conflicts are genuinely too complex (semantic merges across major refactors, you'd be guessing), `git rebase --abort`, clean up, mark `skipped` with a reason, and move on. Don't push something you can't justify.
-
-  **Don't bypass safety to make a conflict go away.** Never `git push --force` (without `--with-lease`), never silently drop commits, never `--allow-empty` past unresolved markers.
+- **`resolve`** (default) — resolve in a local worktree, force-push with lease, clean up. Full procedure and safety rules in [`CONFLICTS.md`](CONFLICTS.md). Then continue to step 3.
 
 ### 3. Wait for `detailed_merge_status` to settle
 
@@ -204,20 +135,21 @@ Re-read the MR JSON and decide off `detailed_merge_status` first — it's alread
 glab mr view <id> --output json | jq '{detailed_merge_status, draft, work_in_progress, has_conflicts, pipeline: .head_pipeline.status, discussions: .blocking_discussions_resolved}'
 ```
 
-Mark MR `failed` and move to next based on `detailed_merge_status`:
+Mark MR `failed` and move to next based on `detailed_merge_status`. This is the authoritative value → meaning → action table referenced from step 0:
 
-| `detailed_merge_status` | Outcome | Reason tag |
-|---|---|---|
-| `mergeable` | Proceed to step 5 | — |
-| `ci_still_running` | Proceed to step 5 (auto-merge handles it) | — |
-| `conflict` | Fail | `conflicts` |
-| `need_rebase` | Fail (you should have rebased — bug) | `needs-rebase` |
-| `draft_status` | Fail | `draft` |
-| `discussions_not_resolved` | Fail | `discussions` |
-| `not_approved` / `requested_changes` | Fail | `approvals` |
-| `ci_must_pass` | Fail (read pipeline status for the why) | `pipeline-<status>` |
-| `external_status_checks` | Fail | `external-checks` |
-| `not_open` | Skip — already merged or closed | `not-open` |
+| `detailed_merge_status` | Meaning | Outcome | Reason tag |
+|---|---|---|---|
+| `mergeable` | Ready to merge | Proceed to step 5 | — |
+| `ci_still_running` | Pipeline running | Proceed to step 5 (auto-merge handles it) | — |
+| `checking` / `unchecked` | GitLab still computing | Keep polling (step 3) | — |
+| `conflict` | Merge conflicts | Fail | `conflicts` |
+| `need_rebase` | Fast-forward only; rebase required | Fail (you should have rebased — bug) | `needs-rebase` |
+| `ci_must_pass` | Pipeline failed or missing | Fail (read pipeline status for the why) | `pipeline-<status>` |
+| `discussions_not_resolved` | Unresolved threads | Fail | `discussions` |
+| `draft_status` | Draft MR | Fail | `draft` |
+| `not_approved` / `requested_changes` | Approval state blocks merge | Fail | `approvals` |
+| `external_status_checks` | External check failing | Fail | `external-checks` |
+| `not_open` | MR closed/merged already | Skip — already merged or closed | `not-open` |
 
 If `detailed_merge_status` is missing (older GitLab), fall back to the per-field checks: `draft` / `has_conflicts` / `head_pipeline.status ∈ {failed,canceled}` / `blocking_discussions_resolved=false`.
 
@@ -342,53 +274,8 @@ Exit semantics: report success if all merged, otherwise list which failed/skippe
 - **Never bypass the `--with-lease` safety** on force pushes.
 - **`--dry-run`** means print every step you *would* take without running `glab mr rebase`, `glab mr merge`, `git push`, or any worktree mutation. `glab mr view`/`glab api` reads are fine.
 
-## Differences vs. `merge-train.sh`
+## glab reference
 
-This skill exists because the bash script can't make judgment calls. Use that capability:
-
-- **Adaptive poll cadence based on real pipeline history** (see "Pipeline duration intelligence"). The script's fixed 30s interval is the headline misbehavior — it both wastes API calls during the quiet phase and adds up to 30s of dead time between MRs. Sample `p50`/`p90` once per train, sleep through the quiet phase, tighten in the landing window, investigate past p90.
-- **Use `detailed_merge_status` as the primary mergeability signal**, not the legacy `merge_status` and a hand-rolled `draft || conflicts || pipeline-failed || ...` ladder. GitLab already computed the precise blocker — read it.
-- **Use `diverged_commits_count` to skip the rebase entirely when the source branch is already current.** No reason to trigger a no-op rebase pipeline.
-- **Read the CI pipeline jobs, not just the top-level status.** When a pipeline runs long, look at which job is slow, tail its trace, decide if it's progressing or wedged. The script just polls a status field.
-- Conflicts are resolved in-session with your file tools, not a sub-`claude --print`. You can see exactly what changed and pick a merge that preserves both intents.
-- Stuck states (CI hung, weird `merge_status`, etc.) get a question to the user, not a silent skip or infinite poll.
-- Flaky pipeline failures get a quick `glab ci retry` offer before being reported as terminal.
-
-## glab cheat sheet
-
-**Prefer native `glab` subcommands over `glab api` raw calls.** The subcommands handle pagination, project resolution, and output shaping for you. Only fall back to `glab api` when no subcommand exposes the field you need.
-
-### Native subcommands (use these by default)
-
-```bash
-# Full MR state (one call, mine for everything)
-glab mr view <id> --output json | jq '{state, detailed_merge_status, has_conflicts, diverged_commits_count, draft, source_branch, target_branch, sha, pipeline_status: .head_pipeline.status, pipeline_id: .head_pipeline.id}'
-
-# Recent pipelines on a branch (with status filter)
-glab ci list -F json -r <branch> -s success -P 20
-
-# A specific pipeline + its jobs in one call
-glab ci get -p <pipeline-id> -F json --with-job-details \
-  | jq '{status, duration, jobs: [.jobs[] | {id, name, stage, status, duration: (.duration // 0 | floor)}]}'
-
-# Tail a job's trace (works on finished jobs; on a running job it streams)
-glab ci trace <job-id> 2>/dev/null | tail -100
-
-# Retry a failing/flaked job
-glab ci retry <job-id>
-
-# MR ops
-glab mr rebase <id> [--skip-ci]
-glab mr merge <id> --auto-merge -y
-```
-
-### Where `glab api` is still needed
-
-- **`include_rebase_in_progress=true`** on the MR endpoint — `glab mr view` doesn't surface `rebase_in_progress` or `merge_error`. No subcommand exposes this; use the raw API:
-
-  ```bash
-  glab api "projects/:fullpath/merge_requests/<id>?include_rebase_in_progress=true" \
-    | jq '{rebase_in_progress, merge_error, has_conflicts}'
-  ```
+**Prefer native `glab` subcommands over `glab api` raw calls.** The subcommands handle pagination, project resolution, and output shaping for you — the commands are shown inline in the steps above. Only fall back to `glab api` when no subcommand exposes the field you need. The one case that requires it is `rebase_in_progress` / `merge_error`, via `include_rebase_in_progress=true` on the MR endpoint (see step 1); `glab mr view` doesn't surface those fields.
 
 `-F json` and `--output json` are aliases on `glab mr view` / `glab mr list` / `glab ci list` / `glab ci get`; either works. `--output` reads more clearly in scripts.
