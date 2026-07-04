@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
-# Symlink this repo's agents and skills into ~/.claude so they're available
-# in every project. Idempotent — safe to re-run. Matches the existing
-# convention (your ~/.claude/skills/* are already symlinks).
+# Symlink this repo's skills into ~/.claude/skills so they're available in
+# every project. Idempotent — safe to re-run. Matches the existing convention
+# (your ~/.claude/skills/* are already symlinks).
+#
+# Agents live in the sibling `enjunear/agents` repo — grill-team needs its four
+# personas from there; run that repo's install.sh too.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDE_AGENTS="$HOME/.claude/agents"
 CLAUDE_SKILLS="$HOME/.claude/skills"
 
-mkdir -p "$CLAUDE_AGENTS" "$CLAUDE_SKILLS"
-
-# Agents: one symlink per .md file.
-for f in "$REPO_DIR"/agents/*.md; do
-  [ -e "$f" ] || continue
-  ln -sfn "$f" "$CLAUDE_AGENTS/$(basename "$f")"
-  echo "agent  → $CLAUDE_AGENTS/$(basename "$f")"
-done
+mkdir -p "$CLAUDE_SKILLS"
 
 # Skills: one symlink per skill directory.
 for d in "$REPO_DIR"/skills/*/; do

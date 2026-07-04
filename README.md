@@ -1,18 +1,32 @@
 # skills
 
-Personal Claude Code agents and skills, developed here and symlinked into
-`~/.claude/` so they work in every project. Single source of truth, version
-controlled.
+Personal Claude Code skills, developed here and symlinked into `~/.claude/` so
+they work in every project. Single source of truth, version controlled. The
+agents some skills lean on live in the sibling
+[`enjunear/agents`](../agents) repo.
 
 ## Install
 
+Skills install straight from GitHub with the [`skills`][skills-cli] CLI:
+
 ```bash
-./install.sh        # idempotent symlinks → ~/.claude/{agents,skills}
+pnpm dlx skills@latest add enjunear/skills -g -a claude-code
 ```
 
+That drops `grill-team` and `merge-train` into `~/.claude/skills/`. `merge-train`
+works as-is; **`grill-team` also needs its four debate personas**, which live in
+the [`enjunear/agents`](../agents) repo (the `skills` CLI installs skills only,
+not agents). Clone that repo and run its `./install.sh`.
+
 Then reload (`/reload-plugins` picks up agent + skill changes; a fresh session
-also works). Symlinks are the existing convention here — most of
-`~/.claude/skills/` is already symlinked.
+also works).
+
+**Working on the repo itself?** `./install.sh` symlinks the `skills/` into
+`~/.claude/skills/` — the single-source-of-truth workflow for editing here, so
+changes take effect without reinstalling. (Clone `enjunear/agents` alongside and
+run its `install.sh` for the agents.)
+
+[skills-cli]: https://github.com/vercel-labs/skills
 
 ## What's in here
 
@@ -146,11 +160,18 @@ an ADR if it's worth keeping.
 ## Layout
 
 ```
-agents/   blue-sky.md  devils-advocate.md  fact-checker.md  venture-partner.md
 skills/   grill-team/
             SKILL.md             # spawn panel → relay rounds → converge → synthesize → persist
-install.sh
+          merge-train/
+            SKILL.md
+install.sh                       # symlinks skills/ → ~/.claude/skills
 ```
+
+grill-team's four personas (`blue-sky`, `devils-advocate`, `fact-checker`,
+`venture-partner`) live in the sibling
+[`enjunear/agents`](../agents) repo — the skill
+binds them to the debate task at spawn time; the agents themselves are
+task-agnostic.
 
 [SendMessage]: the skill spawns background agents and hands them turns via
 `SendMessage`. If background agents or `SendMessage` are unavailable, grill-team
