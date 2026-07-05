@@ -267,7 +267,7 @@ Exit semantics: report success if all merged, otherwise list which failed/skippe
 ## Behavior rules
 
 - **Sequential only — and the rebase comes *after* the previous MR lands, never before.** The whole point of a train is that each MR rebases onto the *result* of the previous merge. If you pre-rebase MR N+1 while MR N is still merging, the target branch will move under you and you'll need to rebase again, burning a CI cycle. Order is strict: land MR N → THEN start step 1 for MR N+1. No overlap, no head-start. This applies even when MR N+1 looks "ready" with green CI — it isn't, until it's been rebased onto the post-MR-N target.
-- **Always clean up worktrees** in `.merge-train-worktrees/`, including on interrupt or failure. The directory should be added to `.gitignore` if it isn't already (mention this once if you create it).
+- **Always clean up the worktree you created for that MR** (`git worktree remove --force .worktree/merge-train-<id>`), including on interrupt or failure — never delete the whole `.worktree/` directory, since other worktrees (yours or another skill's) may still be in use. Add `.worktree/` to `.gitignore` if it isn't already (mention this once if you create it).
 - **Don't auto-fix MRs you weren't asked about** — only the MRs in the list.
 - **When in doubt, ask the user.** A 30-second pause beats a wrong force-push. Examples: a conflict where intent is ambiguous, a pipeline that's been "running" much longer than usual, an MR that's already merged unexpectedly.
 - **Never `--no-verify`** on push or commit unless the user explicitly approves.

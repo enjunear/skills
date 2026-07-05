@@ -46,14 +46,14 @@ Review each MR independently, in order. One MR's verdict never affects another's
 ```bash
 # <source> = the MR's source_branch, from `glab mr view <id> -F json | jq -r '.source_branch'`
 git fetch origin <source>
-git worktree add .mr-worktree/mr-<id> origin/<source>
+git worktree add .worktree/review-mr-<id> origin/<source>
 ```
 
 `--dry-run` skips this — there's nothing to write, so review from the diff alone.
 
 ### 1. Review
 
-Dispatch the **code-reviewer** agent on the MR, one agent per MR. Give it the MR number, its diff (`glab mr diff <id>`), the MR description (for intent), and the worktree path (`.mr-worktree/mr-<id>`) so it can read the changed files in full context — let the agent decide how deep it needs to go. It returns its findings — this is where the real legwork happens, isolated per MR.
+Dispatch the **code-reviewer** agent on the MR, one agent per MR. Give it the MR number, its diff (`glab mr diff <id>`), the MR description (for intent), and the worktree path (`.worktree/review-mr-<id>`) so it can read the changed files in full context — let the agent decide how deep it needs to go. It returns its findings — this is where the real legwork happens, isolated per MR.
 
 Have it return, for each finding: a one-line description, the `file:line`, and its own blocker-vs-nit call. You make the final classification in step 2 — the agent advises, you decide.
 
@@ -87,7 +87,7 @@ EOF
 **patch → fix the nits, then recommend approve.** Work in the MR's worktree (from the top of the loop); make only the listed nit fixes, one commit, and push the source branch:
 
 ```bash
-cd .mr-worktree/mr-<id>
+cd .worktree/review-mr-<id>
 # ...apply the nit fixes...
 git commit -am "chore: address review nits"
 git push origin HEAD:<source>
@@ -136,10 +136,10 @@ Don't approve, don't fix.
 Once you're done with the MR — pass, patch, or block alike — remove its worktree:
 
 ```bash
-git worktree remove --force .mr-worktree/mr-<id>
+git worktree remove --force .worktree/review-mr-<id>
 ```
 
-Do this even on interrupt or failure, so no `.mr-worktree/` entries are left behind.
+Do this even on interrupt or failure, so no `.worktree/review-mr-*` entries are left behind. Only remove the worktree(s) you created — never the whole `.worktree/` directory.
 
 ## Output
 
@@ -160,6 +160,6 @@ MR     Verdict   Recommendation      Action
 - **When in doubt, block.** A blocker wrongly called a nit gets silently patched into someone's branch; a nit wrongly called a blocker just becomes a comment. The costs aren't symmetric — err toward block.
 - **request changes vs reject.** Default to request changes when the MR's goal is right. Reserve reject for changes that shouldn't proceed as-is, and explain why.
 - **Only the MRs in the list.** Don't review or touch MRs you weren't asked about.
-- **Isolate every MR in a worktree, never the primary checkout.** Always clean up worktrees under `.mr-worktree/`, including on interrupt or failure. Add `.mr-worktree/` to `.gitignore` if it isn't already (mention this once if you create it).
+- **Isolate every MR in a worktree, never the primary checkout.** Always clean up the worktree you created for that MR (`git worktree remove --force .worktree/review-mr-<id>`), including on interrupt or failure — never delete the whole `.worktree/` directory, since other worktrees (yours or another skill's) may still be in use. Add `.worktree/` to `.gitignore` if it isn't already (mention this once if you create it).
 - **`--dry-run`** = review from the diff and report verdicts/recommendations only; no worktree, no `note`, no push.
 - Prefer native `glab` subcommands over raw `glab api`. Use `glab mr note create` (not the deprecated `glab mr note -m`).
