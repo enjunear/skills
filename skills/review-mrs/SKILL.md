@@ -1,7 +1,6 @@
 ---
 name: review-mrs
 description: Review a batch of open GitLab MRs one at a time, then post a recommendation on each — approve, request changes, or reject. Fix small nits in a follow-up commit first, then recommend approval and say what changed.
-disable-model-invocation: true
 ---
 
 # review-mrs — Review open MRs and recommend a verdict
