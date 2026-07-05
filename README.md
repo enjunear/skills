@@ -13,10 +13,11 @@ Skills install straight from GitHub with the [`skills`][skills-cli] CLI:
 pnpm dlx skills@latest add enjunear/skills -g -a claude-code
 ```
 
-That drops `grill-team` and `merge-train` into `~/.claude/skills/`. `merge-train`
-works as-is; **`grill-team` also needs its four debate personas**, which live in
-the [`enjunear/agents`](../agents) repo (the `skills` CLI installs skills only,
-not agents). Clone that repo and run its `./install.sh`.
+That drops `grill-team`, `merge-train`, and `review-mrs` into `~/.claude/skills/`.
+`merge-train` and `review-mrs` work as-is; **`grill-team` also needs its four
+debate personas**, which live in the [`enjunear/agents`](../agents) repo (the
+`skills` CLI installs skills only, not agents). Clone that repo and run its
+`./install.sh`.
 
 Then reload (`/reload-plugins` picks up agent + skill changes; a fresh session
 also works).
@@ -157,13 +158,71 @@ an ADR if it's worth keeping.
 /grill-team <idea> rounds=6                     # override the round cap
 ```
 
+### `/merge-train` — land a stack of MRs one at a time
+
+A sequential GitLab merge train. You hand it a list of MRs (or a filter —
+`--label`, `--target-branch`, `--assignee`) and it lands them **one at a time**:
+server-side rebase, resolve conflicts in a worktree if any, set auto-merge, poll
+until merged or failed, then move to the next. Never parallel, so each MR rebases
+onto the result of the one before it.
+
+The care is in the details it's learned not to trust. `glab mr rebase` prints
+`✓ Rebase successful!` the moment GitLab *accepts* the request — before the rebase
+has actually run — so the skill ignores the CLI's exit code and reads the outcome
+from the MR JSON (`rebase_in_progress`, `merge_error`, `has_conflicts`) instead.
+It leans on GitLab's own computed `detailed_merge_status` rather than re-deriving
+mergeability from individual fields, skips the rebase entirely when
+`diverged_commits_count == 0`, and filters an auto-fetched list down to *approved*
+MRs read from the approvals endpoint (the list JSON can't tell approved from
+unapproved on a project with no mandatory-approval rule).
+
+Polling is adaptive: once per run it samples recent successful pipeline durations
+on the target branch (p50 / p90 / max_seen) and uses those as the wait budget,
+instead of a fixed interval that wastes calls mid-run and lags after merge.
+Conflict policy is `--on-conflict resolve|skip|stop` (default `resolve`, which
+fixes conflicts in a worktree and force-pushes with lease). `--dry-run` prints the
+plan without touching anything.
+
+### `/review-mrs` — review a batch of MRs and recommend a verdict
+
+Reviews open MRs one at a time and posts a **recommendation** on each — never a
+binding approval. The skill does the review legwork; a human casts the actual
+approve/merge vote. Same MR-selection idiom as `merge-train` (positional IDs, or
+`--label` / `--target-branch` / `--assignee` filters).
+
+Each MR gets exactly one verdict:
+
+- **pass** — clean, no findings → recommend **approve**.
+- **patch** — findings are *only* nits (trivial, mechanical, no judgement call) →
+  fix them in one follow-up commit, then recommend **approve** and list what
+  changed.
+- **block** — one or more blockers → recommend **request changes** (intent sound,
+  needs work) or **reject** (shouldn't land as-is). Post the findings; don't fix.
+
+The whole skill turns on classifying findings right, and the tie-break is
+deliberately conservative: **if fixing something needs a decision the author
+should make, it's a blocker, not a nit** — which is what stops it silently
+rewriting someone's MR. When in doubt, block: a mis-called nit gets silently
+patched into a branch, a mis-called blocker just becomes a comment — the costs
+aren't symmetric.
+
+Each MR is reviewed in isolation in a throwaway worktree off the remote source
+branch (never the primary checkout, which may hold your own work), with one
+`code-reviewer` agent dispatched per MR. Worktrees are cleaned up afterward, even
+on interrupt. `--dry-run` reviews and reports the verdict without posting,
+committing, or pushing.
+
 ## Layout
 
 ```
 skills/   grill-team/
             SKILL.md             # spawn panel → relay rounds → converge → synthesize → persist
           merge-train/
-            SKILL.md
+            SKILL.md             # per-MR: rebase → resolve → auto-merge → poll → next
+            PIPELINE-TIMING.md   # sampling p50/p90/max_seen for adaptive polling
+            CONFLICTS.md         # in-worktree conflict resolution procedure + safety rules
+          review-mrs/
+            SKILL.md             # per-MR: isolate → review → classify verdict → post recommendation
 install.sh                       # symlinks skills/ → ~/.claude/skills
 ```
 
