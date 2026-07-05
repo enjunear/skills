@@ -11,12 +11,11 @@ up, then return to step 3 in `SKILL.md`.
 2. Fetch and create worktree:
    ```bash
    git fetch origin <source> <target>
-   mkdir -p .merge-train-worktrees
-   git worktree add .merge-train-worktrees/mr-<id> origin/<source>
+   git worktree add .worktree/merge-train-<id> origin/<source>
    ```
 3. Inside the worktree, rebase onto target:
    ```bash
-   cd .merge-train-worktrees/mr-<id>
+   cd .worktree/merge-train-<id>
    git rebase origin/<target>
    ```
 4. **Resolve conflicts using your tools.** Read each conflicted file, understand
@@ -29,7 +28,7 @@ up, then return to step 3 in `SKILL.md`.
 6. **Always clean up the worktree**, success or failure:
    ```bash
    cd <repo-root>
-   git worktree remove --force .merge-train-worktrees/mr-<id>
+   git worktree remove --force .worktree/merge-train-<id>
    ```
 7. If conflicts are genuinely too complex (semantic merges across major
    refactors, you'd be guessing), `git rebase --abort`, clean up, mark `skipped`
