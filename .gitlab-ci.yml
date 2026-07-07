@@ -1,0 +1,9 @@
+# Minimal CI: shellcheck the one shell script. Nothing else — the skills are
+# markdown, and formatting/prose linting would be noise.
+stages: [lint]
+
+shellcheck:
+  stage: lint
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - shellcheck install.sh
