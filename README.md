@@ -212,6 +212,28 @@ branch (never the primary checkout, which may hold your own work), with one
 on interrupt. `--dry-run` reviews and reports the verdict without posting,
 committing, or pushing.
 
+### `/issue` — capture a bug, feature, enhancement, or chore as a scoped issue
+
+Turns a one-line description into a tracked GitLab or GitHub issue. Classifies it
+(bug / feature / enhancement / chore — an open list mapped to whatever type label
+the project uses), grounds it in the project's docs and code first, then closes
+the gap to a **readiness** bar: every issue lands at either **capture** (recorded,
+still needs human design) or **ready** (problem, intended change, and checkable
+acceptance criteria all pinned — an agent could implement it unattended). A
+**spike/research** issue clears a different bar — its acceptance criteria are
+decisions to reach, not a change to merge.
+
+The clarifying questions exist to push an issue over that bar. If a few inline
+questions won't do it — a feature or architectural change — it **defers** to a
+grill session (`/grill-me`, or `/grill-with-docs` when the change is worth ADRs
+and glossary entries) rather than asking a long interview itself. An issue that
+clears the bar earns the `ready-for-agent` label; one left at capture keeps its
+open questions in the body instead.
+
+Picks the tracker from the git remote (`glab` for GitLab, `gh` for GitHub, ask
+if ambiguous) and uses **only labels that already exist** — proposing a set only
+when the project has none.
+
 ## Layout
 
 ```
@@ -223,6 +245,8 @@ skills/   grill-team/
             CONFLICTS.md         # in-worktree conflict resolution procedure + safety rules
           review-mrs/
             SKILL.md             # per-MR: isolate → review → classify verdict → post recommendation
+          issue/
+            SKILL.md             # classify → ground in docs/code → sharpen or defer → label → create
 install.sh                       # symlinks skills/ → ~/.claude/skills
 ```
 
