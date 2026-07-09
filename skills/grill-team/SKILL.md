@@ -1,7 +1,7 @@
 ---
 name: grill-team
 description: Stress-test an idea with a four-voice debate panel — Blue-Sky amplifies it, Devil's-Advocate attacks it, Fact-Checker grounds it in fact, Venture-Partner shapes it into a marketable product. They debate in rounds over a live SendMessage channel until they converge, then you get a refined version of the idea. Use when the user wants an idea pressure-tested, expanded and challenged at once, sharpened into something buildable, or says "grill-team" / "run the panel" / "debate this idea".
-argument-hint: <idea to stress-test>  |  resume [latest|<transcript-path>] [steer: <new constraint>]
+argument-hint: '<idea to stress-test>  |  resume [latest|<transcript-path>] [steer: <new constraint>]'
 ---
 
 # grill-team — the live debate panel
