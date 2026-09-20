@@ -234,6 +234,19 @@ Picks the tracker from the git remote (`glab` for GitLab, `gh` for GitHub, ask
 if ambiguous) and uses **only labels that already exist** — proposing a set only
 when the project has none.
 
+### `/milestone` — sort the unmilestoned backlog into milestones
+
+Splits the open issues that have no milestone into batches of six and hands
+each batch to a read-only `sonnet` agent, at most six agents at a time. The
+parent reads the milestone descriptions once, so every agent sorts against the
+same buckets. The agents only recommend; the parent applies every write, so
+nothing races on the tracker and one record shows what moved.
+
+Each agent returns two lines per issue: the milestone, then one sentence naming
+the fact that decided it. On a release tracker the rule that does most of the
+sorting is that an issue filed while reviewing an MR belongs to the milestone
+that MR ships in.
+
 ## Layout
 
 ```
@@ -247,6 +260,8 @@ skills/   grill-team/
             SKILL.md             # per-MR: isolate → review → classify verdict → post recommendation
           issue/
             SKILL.md             # classify → ground in docs/code → sharpen or defer → label → create
+          milestone/
+            SKILL.md             # read milestones → batch issues → fan out triage agents → apply → verify
 install.sh                       # symlinks skills/ → ~/.claude/skills
 ```
 
