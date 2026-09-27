@@ -47,14 +47,14 @@ Keep only MRs where `approved` is `true`. Log which unapproved MRs you dropped. 
 
 1. Verify `glab`, `jq`, `git` are available.
 2. Verify CWD is a git repo with a GitLab remote (`glab repo view` should succeed).
-3. **Sample recent pipeline durations on the target branch.** This drives adaptive polling later — see "Pipeline duration intelligence" below.
+3. **Sample recent MR pipeline durations.** This drives adaptive polling later — see "Pipeline duration intelligence" below.
 4. List the MRs about to board, with the estimated per-MR wait window. Unless `--yes` or `--dry-run`, ask "all aboard? [y/N]" and wait for confirmation.
 
 ## Pipeline duration intelligence
 
 A fixed poll interval misbehaves: it wastes API calls while CI is mid-run and then delays the next MR after merge. Use real pipeline history instead.
 
-Once per train run, compute three numbers from recent successful pipelines on the target branch — see [`PIPELINE-TIMING.md`](PIPELINE-TIMING.md) for the `glab ci list` queries and sparse-history fallbacks:
+Once per train run, compute three numbers from recent successful MR pipelines — see [`PIPELINE-TIMING.md`](PIPELINE-TIMING.md) for the `glab ci list` query and sparse-history fallback:
 - **`p50`** (median) — typical wall time from rebase-push to merge
 - **`p90`** — slow-but-still-fine case
 - **`max_seen`** — sanity bound for "this is definitely stuck"
