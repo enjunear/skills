@@ -88,23 +88,33 @@ glab mr view <id> --output json | jq '{
 
 ### 1. Server-side rebase (skip if `diverged_commits_count == 0`)
 
+> ⚠️ **`glab mr rebase` lies.** It will print `✓ Rebase successful!` and exit 0 as soon as GitLab *accepts* the rebase request — even if the actual rebase then fails with conflicts. The exit code and CLI output reflect *the API call*, not *the rebase outcome*. **Never trust the CLI's success message.** Always confirm the result from the MR JSON as below.
+>
+> `rebase_in_progress=false` doesn't prove the rebase finished either. The rebase runs as a background job, and until that job picks the MR up the flag is still `false`, `merge_error` is still empty, and `has_conflicts` still describes the old head. A changed `sha` is the proof.
+
+Record the head `sha`, rebase, then poll every 2s, max 120s, until `rebase_in_progress=false` **and** either the `sha` changed or `merge_error` is set:
+
 ```bash
+mr="projects/:fullpath/merge_requests/<id>?include_rebase_in_progress=true"
+old=$(glab api "$mr" | jq -r '.sha')
 glab mr rebase <id> [--skip-ci]
+result=timeout
+for _ in $(seq 1 60); do
+  sleep 2
+  j=$(glab api "$mr")
+  [ "$(jq -r '.rebase_in_progress' <<<"$j")" = "false" ] || continue
+  if [ "$(jq -r '.sha' <<<"$j")" != "$old" ]; then result=rebased; break; fi
+  if [ -n "$(jq -r '.merge_error // ""' <<<"$j")" ]; then result=failed; break; fi
+done
+echo "REBASE=$result"
 ```
 
-> ⚠️ **`glab mr rebase` lies.** It will print `✓ Rebase successful!` and exit 0 as soon as GitLab *accepts* the rebase request — even if the actual rebase then fails with conflicts. The exit code and CLI output reflect *the API call*, not *the rebase outcome*. **Never trust the CLI's success message.** Always confirm the result by polling `rebase_in_progress` and reading `merge_error` and `has_conflicts` from the MR JSON.
+Outcome:
+- `rebased` → success, proceed to step 3
+- `failed` → conflict handler (step 2)
+- `timeout` → the rebase never ran or never finished. Ask the user before touching this MR again.
 
-The rebase runs async on the server. Poll until `rebase_in_progress=false`, max 120s:
-
-```bash
-glab api "projects/:fullpath/merge_requests/<id>?include_rebase_in_progress=true" \
-  | jq '{rebase_in_progress, merge_error, has_conflicts}'
-```
-
-Outcome (read these fields, not the CLI exit code):
-- `merge_error` non-empty/non-null → rebase failed → conflict handler
-- `has_conflicts=true` → conflict handler
-- Both empty/false → success, proceed
+Step 1 only runs when `diverged_commits_count > 0`, so a successful rebase always produces a new `sha` and the loop can't wait out a no-op.
 
 ### 2. Conflict resolution (only if rebase failed)
 
@@ -119,12 +129,13 @@ Branch on `--on-conflict`:
 After rebase / force-push, GitLab needs a moment to re-evaluate. Poll `detailed_merge_status` (richer than the legacy `merge_status`), up to 30s:
 
 ```bash
-glab mr view <id> --output json | jq -r '.detailed_merge_status'
+glab mr view <id> --output json | jq '{detailed_merge_status, has_conflicts}'
 ```
 
 - `mergeable` → proceed to step 4
 - `ci_still_running` → proceed to step 4 (auto-merge will wait for CI)
 - `checking` / `unchecked` → keep polling
+- `conflict` with `has_conflicts=false` → keep polling. Right after a rebase GitLab can briefly report `conflict` while it recomputes. Trust `conflict` only when `has_conflicts=true` agrees.
 - Anything else → proceed to step 4 anyway and let pre-flight produce a precise reason
 
 ### 4. Pre-flight checks (once, before setting auto-merge)
@@ -142,7 +153,7 @@ Mark MR `failed` and move to next based on `detailed_merge_status`. This is the 
 | `mergeable` | Ready to merge | Proceed to step 5 | — |
 | `ci_still_running` | Pipeline running | Proceed to step 5 (auto-merge handles it) | — |
 | `checking` / `unchecked` | GitLab still computing | Keep polling (step 3) | — |
-| `conflict` | Merge conflicts | Fail | `conflicts` |
+| `conflict` | Merge conflicts | Fail if `has_conflicts=true`, otherwise keep polling (step 3) | `conflicts` |
 | `need_rebase` | Fast-forward only; rebase required | Fail (you should have rebased — bug) | `needs-rebase` |
 | `ci_must_pass` | Pipeline failed or missing | Fail (read pipeline status for the why) | `pipeline-<status>` |
 | `discussions_not_resolved` | Unresolved threads | Fail | `discussions` |
