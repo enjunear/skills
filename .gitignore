@@ -1,2 +1,4 @@
 # debate transcripts are written into whatever project is current, never here
 .grill-team/
+
+.claude/worktrees/
