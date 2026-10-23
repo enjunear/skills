@@ -1,27 +1,31 @@
 ---
 name: implement-work-item
-description: Implement a glab work-item that is ready-for-agent
+description: Implement a given glab work-item, or a small batch of related ones, through to a ready MR
 ---
 
 Steps:
-1. Run `glab issue list --per-page 100 --label ready-for-agent --output json | jq -c '.[] | select((.merge_requests_count // 0) == 0) | {iid, title}'`
-2. For each issue listed,
-   if there are less than ~10 issues, read the full issue description and comments: `glab issue view <iid> --comments`
-3. Pick an issue to work on - see "Picking an Issue" below.
-   If it has no assignee,
-   claim it by assigning it to yourself with `glab issue update <iid> --assignee @me`.
-4. Open a draft MR from the issue.
+1. Fetch the details for the issue prescribed, if not already in context
+   ```bash
+   glab issue view <iid> --comments
+   ```
+
+2. Claim it by assigning it to yourself with `glab issue update <iid> --assignee @me`.
+
+3. Open a draft MR from the issue.
    GitLab creates the branch.
    ```bash
-   glab mr create --related-issue <iid> --create-source-branch --draft --copy-issue-labels \
+   glab mr create --related-issue <iid> --draft --copy-issue-labels \
      --remove-source-branch --assignee @me --fill --no-editor --yes
    ```
-5. Check the MR out into a worktree,
+   Assign the MR to the same milestone as the issue.
+
+4. Check the MR out into a worktree,
    then switch into it with `EnterWorktree` and that `path`.
    ```bash
    glab mr checkout <mr> --worktree .claude/worktrees/mr-<mr>
    ```
-6. Implement the work described by the issue.
+
+5. Implement the work described by the issue.
 
    Call the Skill tool with "mattpocock-skills:tdd" where possible, at pre-agreed seams.
 
@@ -30,26 +34,20 @@ Steps:
    Once done, call the Skill tool with "mattpocock-skills:code-review" to review the work.
 
    Commit and push from the worktree.
-7. Hand it over in one call.
-   Set the reviewer here.
+
+6. Update the MR description using the Skill tool with "mattpocock-skills:pr".
+
+7. Hand it over and set the reviewer.
    ```bash
    glab mr update <mr> --ready --unassign --reviewer @me --unlabel ready-for-agent
    ```
-8. Leave the worktree with `ExitWorktree` and `action: "keep"`.
-   The worktree stays on disk.
-9. Once the MR merges, `git worktree remove .claude/worktrees/mr-<mr>`.
 
+8. Leave the worktree with `ExitWorktree` and remove the worktree.
 
-## Picking an Issue
+## Batches
 
-Good candidate issues are:
-- An issue that is not blocked by pre-requisite issues.
-- An issue that unblocks other issues.
-- High priority/high value.
-- Low effort.
-
-Consider the order in which the issues were created,
-and think about which order the implementation would benefit.
-Consider grouping a logically related batch of issues into one MR.
-Open the MR from the first issue, make at least one commit per issue,
-and add a `Closes #<iid>` line to the commit message for each commit that closes an issue.
+If implementing a batch of related issues into one MR:
+- Claim every issue in the batch.
+- Open the MR from the first issue,
+- make at least one commit per issue, and never bundle issues into one commit,
+- and add a `Closes #<iid>` line to the commit message for each commit that closes an issue.
