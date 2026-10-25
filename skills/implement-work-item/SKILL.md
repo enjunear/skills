@@ -68,7 +68,25 @@ If implementing a batch of related issues into one MR:
 - and add a `Closes #<iid>` line to the commit message for each commit that closes an issue.
 
 Log time per issue, so the slices add up to the whole run with no overlap.
-Run `date +%s` again as you start each issue after the first.
-Each issue's time runs from its start to the next issue's start.
-The first issue's clock starts at the claim, so it carries the setup time.
-The last issue's clock runs to the handover, so it carries the review and handover time.
+Each issue's slice goes in its closing commit,
+as an `@<mins>m` marker on the `Closes #<iid>` line:
+```
+fix(parser): accept trailing commas
+
+Closes #42 @18m
+```
+GitLab logs the time on the issue when you push the commit.
+- The first issue's clock starts at the claim, so it carries the setup time.
+- Each later issue's clock starts with `date +%s` right after the previous issue's closing commit.
+- Each clock stops at its issue's closing commit.
+  Round up to the next minute, as in step 8.
+- A commit with a marker references only its own issue.
+  GitLab applies the first amount to every issue a commit references.
+
+The time after the last closing commit, spent on review and handover,
+goes on the last issue as the step 8 note, timed from that commit.
+Then check each issue's total with `glab issue view <iid> --output json --jq .time_stats.human_total_time_spent`.
+
+Rebasing or amending a pushed commit gives it a new SHA, and GitLab may log its time again.
+Don't rewrite pushed commits that carry a marker.
+`merge-train` rebases MRs on the server, so a batch MR it rebases may show doubled times.
