@@ -74,6 +74,9 @@ which leaves `origin/<source>` stale.
 `--dry-run` skips this — there's nothing to write,
 so review from the diff alone.
 
+Before the checkout, run `date +%s` and keep the number.
+It starts this MR's clock for the time you log in step 3.
+
 ### 1. Review
 
 Dispatch the **code-reviewer** agent on the MR, one agent per MR.
@@ -185,6 +188,21 @@ EOF
 
 Don't approve, don't fix.
 
+**Then log the review time on the MR**, whatever the verdict.
+Time spent is agent wall-clock time from the start of this MR's loop to now,
+rounded up to the next minute.
+It includes any nit fixes.
+Post it as a `/spend` quick action in its own short note.
+GitLab keeps the line above it as the time entry's summary,
+and a whole recommendation is too long for one.
+
+```bash
+mins=$(( ($(date +%s) - <start> + 59) / 60 ))
+glab mr note create <id> -m "Review: <verdict>
+/spend ${mins}m"
+glab mr view <id> --output json --jq .time_stats.human_total_time_spent
+```
+
 ### 4. Clean up the worktree
 
 Once you're done with the MR — pass, patch, or block alike —
@@ -234,6 +252,6 @@ MR     Verdict   Recommendation      Action
   since other worktrees (yours or another skill's) may still be in use.
   Add `.claude/worktrees/` to `.gitignore` if it isn't already (mention this once if you create it).
 - **`--dry-run`** = review from the diff and report verdicts/recommendations only;
-  no worktree, no `note`, no push.
+  no worktree, no `note`, no push, no time logged.
 - Prefer native `glab` subcommands over raw `glab api`.
   Use `glab mr note create` (not the deprecated `glab mr note -m`).

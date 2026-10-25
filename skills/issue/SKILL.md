@@ -84,7 +84,22 @@ glab issue create --title "fix: …" --description "$(cat body.md)" --label "bug
 gh issue create --title "fix: …" --body-file body.md --label "bug,ready-for-agent"
 ```
 
-Report the created issue URL and its readiness level. If it landed at **capture**, say what's still open and which grill session would close it.
+If a GitLab issue landed at **ready**, set a time estimate.
+Estimate the agent wall-clock time from claim to a ready MR, the way `implement-work-item` would run it.
+Size it from the files and tests you read in step 2.
+`implement-work-item` logs the real time against it, so the two compare like for like.
+Post it as an `/estimate` quick action, under a line that says what the number measures:
+
+```bash
+glab issue note <iid> -m "Estimate: agent wall-clock time from claim to ready MR.
+/estimate 45m"
+glab issue view <iid> --output json --jq .time_stats.human_time_estimate
+```
+
+Leave a **capture** issue without an estimate, because nobody can size work that isn't designed yet.
+GitHub has no time tracking, so skip this step there.
+
+Report the created issue URL, its readiness level, and the estimate if you set one. If it landed at **capture**, say what's still open and which grill session would close it.
 
 ## Behaviour rules
 

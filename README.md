@@ -209,8 +209,9 @@ aren't symmetric.
 Each MR is reviewed in isolation in a throwaway worktree off the remote source
 branch (never the primary checkout, which may hold your own work), with one
 `code-reviewer` agent dispatched per MR. Worktrees are cleaned up afterward, even
-on interrupt. `--dry-run` reviews and reports the verdict without posting,
-committing, or pushing.
+on interrupt. Each review logs its agent wall-clock time on the MR through
+GitLab time tracking. `--dry-run` reviews and reports the verdict without
+posting, committing, pushing, or logging time.
 
 ### `/issue` — capture a bug, feature, enhancement, or chore as a scoped issue
 
@@ -228,7 +229,9 @@ questions won't do it — a feature or architectural change — it **defers** to
 grill session (`/grill-me`, or `/grill-with-docs` when the change is worth ADRs
 and glossary entries) rather than asking a long interview itself. An issue that
 clears the bar earns the `ready-for-agent` label; one left at capture keeps its
-open questions in the body instead.
+open questions in the body instead. On GitLab, a ready issue also gets a time
+estimate in agent wall-clock time, which `implement-work-item` logs real time
+against.
 
 Picks the tracker from the git remote (`glab` for GitLab, `gh` for GitHub, ask
 if ambiguous) and uses **only labels that already exist** — proposing a set only
