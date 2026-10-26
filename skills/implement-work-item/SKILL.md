@@ -42,8 +42,23 @@ Steps:
 
 7. Hand it over and set the reviewer.
    ```bash
-   glab mr update <mr> --ready --unassign --reviewer @me --unlabel ready-for-agent
+   glab mr update <mr> --ready --unassign --reviewer <reviewer> --unlabel ready-for-agent
    ```
+   Find `<reviewer>` in this order, and stop at the first hit:
+   1. The first of `.gitlab/CODEOWNERS`, `CODEOWNERS` or `docs/CODEOWNERS` that exists.
+      Use the owners of the files the MR changes, from `git diff --name-only origin/<base>...HEAD`.
+      Only individual usernames count, because `--reviewer` takes no groups or emails.
+      If that leaves more than one person, ask the user as in item 3, offering them.
+   2. A reviewer named in the project's `CLAUDE.md` or `AGENTS.md`.
+   3. Otherwise, list who reviewed or merged recent MRs,
+      then ask the user to pick a reviewer, offering those people as options.
+      ```bash
+      glab mr list --merged --per-page 20 --output json \
+        | jq -r '.[] | (.reviewers[]?.username), (.merged_by.username // empty)' \
+        | sort | uniq -c | sort -rn
+      ```
+
+   Never fall back to `@me` without asking.
 
 8. Log the time spent on the issue.
    Time spent is agent wall-clock time from the claim in step 2 to now,
