@@ -48,7 +48,21 @@ Steps:
 
    Commit and push from the worktree.
 
-6. Update the MR description using the Skill tool with "mattpocock-skills:pr".
+6. Write the MR description and send it to the MR.
+   Draft it with the Skill tool and "mattpocock-skills:pr",
+   into a file in the scratchpad.
+   Change that file only with Write or Edit.
+   ```bash
+   glab mr update <mr> --description-file <file>
+   ```
+   This replaces the whole description.
+   The file must carry a `Closes #<iid>` line for every issue the MR closes,
+   including the one glab added in step 3.
+   Check the description landed before step 7 marks the MR ready:
+   ```bash
+   glab mr view <mr> --output json --jq .description
+   ```
+   It should show every `Closes #<iid>` line.
 
 7. Hand it over and set the reviewer.
    ```bash
@@ -91,6 +105,10 @@ If implementing a batch of related issues into one MR:
 - Open the MR from the first issue,
 - make at least one commit per issue, and never bundle issues into one commit,
 - and add a `Closes #<iid>` line to the commit message for each commit that closes an issue.
+
+The MR description also carries a `Closes #<iid>` line for every issue in the batch, as step 6 says.
+A squash merge can drop commit messages, so the description is what closes the issues.
+The commit lines stay because they carry the time markers below.
 
 Log time per issue, so the slices add up to the whole run with no overlap.
 Each issue's slice goes in its closing commit,
