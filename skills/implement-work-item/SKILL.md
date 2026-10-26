@@ -20,6 +20,16 @@ Steps:
    glab mr create --related-issue <iid> --draft --copy-issue-labels \
      --remove-source-branch --assignee @me --fill --no-editor --yes
    ```
+   If glab reports `Branch already exists`, it still opens the MR on that branch.
+   List what the branch holds beyond the base,
+   taking `<branch>` and `<base>` from glab's `Creating draft merge request for <branch> into <base>` line:
+   ```bash
+   git fetch -q origin && git log --oneline origin/<base>..origin/<branch>
+   ```
+   No output means the branch is empty, so carry on.
+   Any commits mean earlier work exists.
+   Stop and report the branch and its commits, rather than building on them.
+
    Assign the MR to the same milestone as the issue.
 
 4. Check the MR out into a worktree,
