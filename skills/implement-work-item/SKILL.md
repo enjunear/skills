@@ -64,10 +64,18 @@ Steps:
    ```
    It should show every `Closes #<iid>` line.
 
-7. Hand it over and set the reviewer.
+7. Hand it over, retitle it, and set the reviewer.
    ```bash
-   glab mr update <mr> --ready --unassign --reviewer <reviewer> --unlabel ready-for-agent
+   glab mr update <mr> --ready --title "<type>(<scope>): <summary>" \
+     --unassign --reviewer <reviewer> --unlabel ready-for-agent
    ```
+   Step 3 titled the MR `Resolve "<issue title>"`,
+   and the squash commit carries the title onto `main`.
+   Replace it with a conventional commit subject that describes the change, not the issue.
+   For a single-issue MR, the closing commit's subject is usually the right title.
+   For a batch, the title sums up the whole MR.
+   Retitle only in this call.
+
    Find `<reviewer>` in this order, and stop at the first hit:
    1. The first of `.gitlab/CODEOWNERS`, `CODEOWNERS` or `docs/CODEOWNERS` that exists.
       Use the owners of the files the MR changes, from `git diff --name-only origin/<base>...HEAD`.
@@ -83,6 +91,12 @@ Steps:
       ```
 
    Never fall back to `@me` without asking.
+
+   Once the handover call has run, check the title landed:
+   ```bash
+   glab mr view <mr> --output json --jq '.title, .draft'
+   ```
+   It should show the new title and `false`.
 
 8. Log the time spent on the issue.
    Time spent is agent wall-clock time from the claim in step 2 to now,
