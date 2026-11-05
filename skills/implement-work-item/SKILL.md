@@ -101,11 +101,33 @@ Steps:
 8. Log the time spent on the issue.
    Time spent is agent wall-clock time from the claim in step 2 to now,
    rounded up to the next minute.
-   Post it as a `/spend` quick action, under a summary line that GitLab keeps as the time entry's summary.
+   Check the work item's type.
+   ```bash
+   glab issue view <iid> --output json --jq '.issue_type, .id'
+   ```
+   The first line is the type.
+   The second is the global `id`, which is not the `iid`.
+   For an `issue`, post the time as a `/spend` quick action,
+   under a summary line that GitLab keeps as the time entry's summary.
    ```bash
    mins=$(( ($(date +%s) - <start> + 59) / 60 ))
    glab issue note <iid> -m "Implemented in <MR URL>
    /spend ${mins}m"
+   ```
+   For a `task`, don't post `/spend`.
+   GitLab removes it from the note and logs nothing.
+   Log the time with `timelogCreate` instead, passing the global `id`.
+   GitLab rejects a `spentAt` in the future and compares it in UTC, so take it from `date -u`.
+   ```bash
+   mins=$(( ($(date +%s) - <start> + 59) / 60 ))
+   at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+   glab api graphql -f query="mutation { timelogCreate(input: {
+     issuableId: \"gid://gitlab/Issue/<id>\", timeSpent: \"${mins}m\",
+     spentAt: \"$at\", summary: \"Implemented in <MR URL>\" }) { errors } }"
+   ```
+   `errors` should be empty.
+   Either way, check the total:
+   ```bash
    glab issue view <iid> --output json --jq .time_stats.human_total_time_spent
    ```
    The total should have grown by `mins`.
@@ -139,9 +161,14 @@ GitLab logs the time on the issue when you push the commit.
   Round up to the next minute, as in step 8.
 - A commit with a marker references only its own issue.
   GitLab applies the first amount to every issue a commit references.
+- Check each item's type with step 8's lookup before writing its closing commit.
+  A Task's closing commit carries a plain `Closes #<iid>` line with no marker,
+  because GitLab ignores markers on Tasks.
+  Log the Task's slice with `timelogCreate` right after you push that commit,
+  as in step 8, with `<start>` at the start of that slice.
 
 The time after the last closing commit, spent on review and handover,
-goes on the last issue as the step 8 note, timed from that commit.
+goes on the last issue as in step 8, timed from that commit.
 Then check each issue's total with `glab issue view <iid> --output json --jq .time_stats.human_total_time_spent`.
 
 Rebasing or amending a pushed commit gives it a new SHA, and GitLab may log its time again.
