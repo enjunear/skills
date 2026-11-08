@@ -27,6 +27,12 @@ also works).
 changes take effect without reinstalling. (Clone `enjunear/agents` alongside and
 run its `install.sh` for the agents.)
 
+**Loading it as a plugin?**
+`.claude-plugin/plugin.json` lets `claude --plugin-dir <checkout>` load the repo as the `enjunear-skills` plugin,
+with no install step.
+Skills then show as `enjunear-skills:<skill>`.
+Shelly uses this for its vendored copy.
+
 [skills-cli]: https://github.com/vercel-labs/skills
 
 ## What's in here

@@ -1,0 +1,9 @@
+{
+  "name": "enjunear-skills",
+  "description": "Michael Reeves's Claude Code skills for GitLab work: issues, milestones, implementing work items, reviewing and merging MRs, and debate panels.",
+  "author": {
+    "name": "Michael Reeves"
+  },
+  "repository": "https://github.com/enjunear/skills",
+  "license": "MIT"
+}
