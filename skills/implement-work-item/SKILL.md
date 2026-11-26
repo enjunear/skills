@@ -67,7 +67,7 @@ Steps:
 7. Hand it over, retitle it, and set the reviewer.
    ```bash
    glab mr update <mr> --ready --title "<type>(<scope>): <summary>" \
-     --unassign --reviewer <reviewer> --unlabel ready-for-agent
+     --reviewer <reviewer> --unlabel ready-for-agent
    ```
    Step 3 titled the MR `Resolve "<issue title>"`,
    and the squash commit carries the title onto `main`.
